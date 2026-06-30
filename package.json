@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "fastify",
   "main": "server.js",
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon server.js"
@@ -11,6 +11,7 @@
   "author": "sameer",
   "license": "ISC",
   "dependencies": {
+    "@fastify/cors": "^11.2.0",
     "dotenv": "^17.4.2",
     "fastify": "^5.9.0"
   },

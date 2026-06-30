@@ -1,5 +1,14 @@
-require("dotenv").config();
-const fastify = require("fastify")({ logger: true });
+import Fastify from "fastify";
+import dotenv from "dotenv";
+import cors from "@fastify/cors";
+
+dotenv.config();
+
+const fastify = Fastify({ logger: true });
+
+fastify.register(cors, {
+  origin: "*", // Allow all origins
+});
 
 fastify.get("/", async (request, reply) => {
   reply.send({ message: "Hello, Fastify!" });
