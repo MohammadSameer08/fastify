@@ -9,6 +9,7 @@ import dotenv from "dotenv";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import mongoDbPlugin from "./plugins/mongodb.js";
+import authRoutes from "./routes/auth.js";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -69,6 +70,9 @@ fastify.get("/test-db", async (request, reply) => {
 fastify.get("/", async (request, reply) => {
   reply.send({ message: "Hello, Fastify!" });
 });
+
+// Register authentication routes
+fastify.register(authRoutes, { prefix: "/api/auth" }); // All auth routes will be prefixed with /api/auth
 
 /**
  * Start the server
