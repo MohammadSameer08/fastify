@@ -7,6 +7,7 @@
 import Fastify from "fastify";
 import dotenv from "dotenv";
 import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
 import mongoDbPlugin from "./plugins/mongodb.js";
 
 // Load environment variables from .env file
@@ -30,6 +31,12 @@ fastify.register(cors, {
  * This plugin establishes connection to MongoDB database
  */
 fastify.register(mongoDbPlugin);
+
+/**
+ * Register cookie plugin
+ * This plugin allows setting and reading cookies in Fastify
+ */
+fastify.register(cookie);
 
 /**
  * Health check endpoint to verify MongoDB connection

@@ -133,6 +133,13 @@ export const loginUser = async (request, reply) => {
       expiresIn: "1h",
     });
 
+    const cookieOptions = {
+      httpOnly: true, // Prevents client-side JavaScript from accessing the cookie
+      sameSite: "strict", // Prevents CSRF attacks by restricting cross-site requests
+      maxAge: 3600000, // Cookie expires in 1 hour (in milliseconds)
+    };
+
+    reply.cookie("token", token, cookieOptions); // Set token as HTTP-only cookie for security. we need to set the cookie in the response so that the client can store it and send it with subsequent requests. This is a common practice for session management in web applications.
     // Send success response with authentication token
     reply.send({ message: "Login successful", token });
   } catch (err) {
@@ -185,10 +192,12 @@ export const forgotPassword = async (request, reply) => {
     const resetTokenExpiry = Date.now() + 3600000;
 
     // Save reset token and expiry to user document
-    user.resetToken = resetToken;
-    user.resetTokenExpiry = resetTokenExpiry;
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = resetTokenExpiry;
     await user.save();
 
+    // Create a password reset link (for demonstration purposes)
+    const resetLink = `http://localhost:${process.env.PORT}/reset-password/${resetToken}`;
     /**
      * TODO: Send password reset email to user
      * The email should contain a link like:
@@ -203,5 +212,100 @@ export const forgotPassword = async (request, reply) => {
     // Log error and send generic error response
     request.log.error("Error requesting password reset:", err);
     reply.status(500).send({ error: "Error requesting password reset" });
+  }
+};
+
+/**
+ * Reset Password Endpoint
+ * POST /reset-password/:token
+ *
+ * Completes the password reset process using the reset token
+ * Token must be valid and not expired (generated within 1 hour)
+ *
+ * URL Parameters:
+ * - token: string (reset token from request.params)
+ *
+ * Request body should contain:
+ * - newPassword: string (new password to set for the user)
+ *
+ * Returns:
+ * - 200: Password has been reset successfully
+ * - 400: Invalid/expired token or missing fields
+ * - 500: Server error during password reset
+ */
+export const resetPassword = async (request, reply) => {
+  try {
+    /**
+     * Extract reset token from URL path parameter
+     * Example URL: POST /reset-password/abc123xyz789
+     * request.params.token = "abc123xyz789"
+     */
+    const { token } = request.params;
+
+    // Extract new password from request body
+    const { newPassword } = request.body;
+
+    /**
+     * Validate that both token and new password are provided
+     * Both are required to proceed with password reset
+     */
+    if (!token || !newPassword) {
+      return reply
+        .status(400)
+        .send({ error: "Reset token and new password are required" });
+    }
+
+    /**
+     * Find user by reset token and check if token is still valid
+     * MongoDB query explanation:
+     * - resetPasswordToken: token → find user with this exact token
+     * - resetPasswordExpires: { $gt: Date.now() } → token must not be expired
+     *   ($gt means "greater than" - expiry date must be in the future)
+     *
+     * If token expired: resetPasswordExpires is in the past, query returns null
+     */
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    /**
+     * If no user found, either:
+     * 1. Token doesn't exist (user never requested reset)
+     * 2. Token has expired (more than 1 hour has passed)
+     * 3. Token already used (user already reset password)
+     */
+    if (!user) {
+      return reply
+        .status(400)
+        .send({ error: "Invalid or expired reset token" });
+    }
+
+    /**
+     * Hash the new password using bcrypt
+     * Never store plain text passwords in database
+     * Salt rounds: 10 (good balance of security and performance)
+     */
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    /**
+     * Update user's password and clear reset token fields
+     * Setting to undefined removes the fields from the document
+     * This prevents token reuse and cleans up after successful reset
+     */
+    user.password = hashedPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+
+    // Save updated user document to database
+    await user.save();
+
+    // Send success response to client
+    reply.send({ message: "Password has been reset successfully" });
+  } catch (error) {
+    // Log error details for debugging
+    request.log.error("Error resetting password:", error);
+    // Send generic error response to client
+    reply.status(500).send({ error: "Error resetting password" });
   }
 };
